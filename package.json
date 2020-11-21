@@ -1,0 +1,20 @@
+{
+  "name": "vntexercise",
+  "version": "1.0.0",
+  "description": "vnt software home exercise",
+  "main": "app.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "Gali Gev",
+  "license": "ISC",
+  "dependencies": {
+    "aws-sdk": "^2.796.0",
+    "chart.js": "^2.9.4",
+    "datetime": "0.0.3",
+    "express": "^4.17.1",
+    "ip-validator": "0.0.1",
+    "nodemon": "^2.0.6",
+    "time-delta": "0.0.2"
+  }
+}
