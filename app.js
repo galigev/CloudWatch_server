@@ -9,11 +9,20 @@ AWS.config.loadFromPath("./.aws/credentials.json");
 var cloudwatch = new AWS.CloudWatch();
 var ec2 = new AWS.EC2({ apiVersion: '2016-11-15' });
 
+let returnErr;
+let proceed = true;
+
 const daysOptions = {
     'last_day': 24 * 60 * 60 * 1000,
     'last_week': 24 * 60 * 60 * 7 * 1000,
     'last_month': 24 * 60 * 60 * 30 * 1000
 }
+
+const sortArray = (a,b) => {  
+    var dateA = new Date(a.date).getTime();
+    var dateB = new Date(b.date).getTime();
+    return dateA > dateB ? 1 : -1;  
+}; 
 
 const validateVariables = (ipAddress, date, period) => {
     if (!validate.ipv4(ipAddress))
@@ -32,7 +41,7 @@ const getDescribeInstances = (ecParams) => {
         ec2.describeInstances(ecParams, function (err, data) {
             if (err) {
                 reject(err);
-                throw new Error("Server not found");
+                returnErr = "Server not found";
             }
             else {
                 resolve(data);
@@ -44,8 +53,10 @@ const getDescribeInstances = (ecParams) => {
 const getMetricStatistics = (cwParams) => {
     return new Promise((resolve, reject) => {
         cloudwatch.getMetricStatistics(cwParams, function (err, data) {
-            if (err)
+            if (err) {
                 console.log(err, err.stack);
+                returnErr = err.message;
+            }
             else {
                 resolve(data);
             }
@@ -55,10 +66,8 @@ const getMetricStatistics = (cwParams) => {
 
 const getCpuUtilization = async (ipAddress, date, period) => {
 
-    let proceed = true;
-
     if (!validateVariables(ipAddress, date, period)) {
-        throw new Error("Variables not valid");
+        returnErr = "Variables not valid";
         proceed = false;
         return;
     }
@@ -78,12 +87,10 @@ const getCpuUtilization = async (ipAddress, date, period) => {
 
     if (data.Reservations[0] == undefined) {
         proceed = false;
-        throw new Error("Server not found");
-        return;
+        returnErr = "Server not found";
     }
 
     if (proceed) {
-        console.log
         let cwParams = {
             Namespace: 'AWS/EC2',
             Period: period,
@@ -95,8 +102,10 @@ const getCpuUtilization = async (ipAddress, date, period) => {
         };
 
         return getMetricStatistics(cwParams).catch(e => {
-            proceed = false;
-            throw new Error("There was a problem getting the information");
+            if (e) {
+                proceed = false;
+                returnErr = "There was a problem getting the information";
+            }
         });
     }
 }
@@ -113,17 +122,26 @@ app.get("/", function (req, res) {
 
 app.get("/getCpuUtilization", async function (req, res) {
 
+    proceed = true;
+    returnErr = "There was a problem getting the information";
+
     try {
+
         var utilization = await getCpuUtilization(req.query.ipAddress, req.query.date, req.query.period);
-        res.send(utilization);
+
+        if (proceed) {
+            utilization.Datapoints.sort(sortArray);
+            res.send(utilization);
+        }
+        else
+            res.send({ "error": returnErr });
     }
     catch (e) {
-        console.log(e);
-        res.status(500).json(e);
+        res.send({ "error": returnErr });
     }
+
+
 });
-
-
 
 app.listen(3000, function () {
     console.log("Server is up on port 3000");
